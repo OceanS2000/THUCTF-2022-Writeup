@@ -1,0 +1,48 @@
+* 宝箱怪识别机及 Pro Max 版
+原版： =18 solves, 320 pts=
+
+Pro Max 版： =7 solves, 704 pts=
+
+首先来看不 Pro 的版本。阅读给出的源代码可知，本题给出了 7 位随机比特，要求在 15
+次任意的布尔函数查询后（其中可能出现至多两次的翻转），恢复其结果。
+
+提示给出了 =BCH(15,7)= 是一种纠错码，可以恢复至多两位的错误，恰好满足我们的要求。
+但是，维基百科上的 [[https://en.wikipedia.org/wiki/BCH_Code][BCH]] 页面充斥着有限域上的多项式，虽然据此实现相应的编解码程序
+是可行的，但是如何将编码后结果的每一位对应到所要查询的布尔表达式却不清楚。
+
+于是盯着它看了半小时无果，就去和群友一起庆祝国庆在紫草上喝酒去了，第二天起床，决
+定先看一眼 Pro Max 版，发现其不过是把 7 位的要求提高到 8 位。于是开始搜索
+『(15,8,2) error correcting』『15 bit optimal double error correcting』之类的名
+词，听说了一个叫做『Preparata Code』的东西，而它的维基百科页面提到它在 15 的长度
+下又叫『Nordstrom-Robinson optimum code』。于是发现了
+https://doi.org/10.1016/S0019-9958(67)90835-2
+
+#+begin_quote
+A systematic nonlinear code having length 15, minimum distance 5, and 256 code
+words is given in Boolean form. This is the maximum possible number of words for
+length 15 and distance 5.
+#+end_quote
+
+这篇文章直接给出了一个布尔表达式（之后 Preparata 就拿这玩意的多项式理论推广发了
+一批纸），也没有什么解释，一股“这个构造我们找到了，虽然我们也不知道为什么”的味道。
+尽管文章中没有给出解码方法，考虑到我们只需解码 50 条消息，直接穷举汉明距离其实已
+经足够。
+
+于是掏出 Mathematica：
+[[file:./mma.png]]
+
+Mathematica 的模式匹配功能允许我直接在一个布尔函数的 DNF 形式的语法树上操作，直
+接变换成服务端需要的查询字符串，然后导出成 Python 文件。
+
+为了解码，直接在 Python 中调用 Mathematica:
+#+begin_src python
+mathematica = WolframLanguageSession("/opt/Wolfram/Mathematica/13.1/Executables/WolframKernel")
+# ...
+corrected = mathematica.evaluate(wl.Nearest(msg.coded, ans, DistanceFunction=wl.HammingDistance))[0]
+# ...
+mathematica.stop()
+#+end_src
+
+为了做原版的题目，只需将得到的查询字符串中的 =B7= 全部替换为 =0= 即可。
+
+代码参见附录 [[id:94e877aa-9c12-4878-818c-795885c28fd6][=Mimic_Query=]]。

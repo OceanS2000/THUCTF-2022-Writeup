@@ -1,0 +1,18 @@
+* 小可莉能有什么坏心思呢？
+=54 solves, 200 pts=
+
+提示文件为三个 =png= 文件，使用 =feh= 打开，由于 =feh= 默认透明背景为棋盘格，可
+以明显地观测到使用 alpha 通道将两张图片叠合在一起的痕迹。
+
+#+CAPTION: =feh /tmp/image1.png=
+[[./image1_1.png]]
+
+于是使用 =feh= 的 =-B= 选项，设定不同的背景颜色，即可从图片的右下角判读出以下信息
+
+#+begin_example
+[-B white  image1] A = chtg   [-B black  image1] B = zjsv
+[-B yellow image2] C = kfdb   [-B green  image3] D = etmv
+[-B purple image2] E = dcps   [-B brown  image3] F = rqqy
+#+end_example
+
+根据提示，将每个大写字母对应的文字连贯起来即可获得 flag。

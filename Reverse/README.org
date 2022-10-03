@@ -1,0 +1,71 @@
+* encrypt level 1
+=65 solves, 200 pts=
+
+下载后发现是一个 =pyc= 文件，到 https://www.toolnb.com/tools-lang-en/pyc.html 反
+编译后发现是一个简单的异或，抄写一遍即得 flag。
+
+* encrypt level 2
+=33 solves, 203 pts=
+
+检查文件，发现其期待 flag 是一个长为 16 的连续字符串，经过了一些异或变换后和
+=seed= 进行比较。
+#+NAME: encrypt level 2 主函数
+[[file:./enc_2.png]]
+
+于是掏出 angr：
+#+begin_src python
+import angr
+import claripy
+
+proj = angr.Project('/tmp/encrypt_level2')
+input_len = 16
+flag_chars = [claripy.BVS("flags_{}".format(i),8) for i in range(input_len)]
+flag = claripy.Concat(*flag_chars + [claripy.BVV(b'\n')])
+state = proj.factory.full_init_state(add_options=angr.options.unicorn, stdin=flag)
+for k in flag_chars: # Assume flag printable ASCII
+    state.solver.add(k < 0x7f)
+    state.solver.add(k > 0x20)
+
+sm = proj.factory.simulation_manager(state)
+sm.run()
+y = []
+for x in sm.deadended:
+    print(x.posix.dumps(1))
+    if b'Right' in x.posix.dumps(1):
+        y.append(x)
+print(y[0].posix.dumps(0))
+
+# ==> b'THUCTF{bd18f3b6}\n'
+#+end_src
+
+* Calculator
+=7 solves, 610 pts=
+
+所给的代码文件都在调用 =helper= 模块中的函数，而后者是一个二进制文件。由于带有调
+试符号，对其反编译相对容易。
+
+首先来看最后一个函数 =iRZCZUQtZZ=
+#+NAME: =iRZCZUQtZZ(__pyx_self, __pyx_v_val）=
+[[file:calculator_1.png]]
+
+前 30 行可以推断是在获取 =global_dict["x"]= 的值，之后这个值被用来和参数进行比较。
+查 =PyObject_RichCompare= 文档可知，第三个参数代表比较的类型，2 为 =Py_EQ= 。因
+此整个函数相当于
+
+#+begin_src python
+def iRZCZUQtZZ(self, v):
+    return global_dict["x"] == v
+#+end_src
+
+类似地，可以得到其余函数的功能如下
+
+| 函数名     | 功能                                       |
+|------------+--------------------------------------------|
+| kFHMxNWJWW | ~global_dict["x"] //= v~                   |
+| CRbnGldQgW | ~global_dict["x"] -= v~                    |
+| EJgCNSIrep | ~global_dict["x"] ^= v~                    |
+| ERmIyQAWoY | ~global_dict["x"] += v~                    |
+| TuIaQriaky | ~global_dict["x"] *= v~                    |
+| LTZfkjkZOd | ~global_dict["x"] = bytes_to_long(read())~ |
+
+将这些运算逆向操作一遍，即可获得 flag。（代码见 [[id:8229e639-5ca4-4a96-b0dc-59dd5cef0ba0][=calculator.py=]]  ）

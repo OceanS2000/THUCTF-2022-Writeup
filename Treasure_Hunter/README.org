@@ -1,0 +1,54 @@
+* Treasure Hunter Plus Plus
+=23 solves, 308 pts=
+
+容器启动后为一个网站，上有九个按钮，观察其源代码可以发现，每个按钮虽然顺序会随机
+改变，但是其总是对应提示中的一个图片
+
+#+ATTR_LATEX: :options breaklines=false
+#+begin_src html
+<div class="hwrapper">
+  <div class="wwrapper">
+    <div class="push_btn" id="pb1"><img src="./img/cc14862c.png"></div>
+    <div class="push_btn" id="pb2"><img src="./img/4bea2543.png"></div>
+    <div class="push_btn" id="pb3"><img src="./img/297e236d.png"></div>
+  </div>
+  <div class="wwrapper">
+    <div class="push_btn" id="pb4"><img src="./img/f2a7baf3.png"></div>
+    <div class="push_btn" id="pb5"><img src="./img/7eb1b2dc.png"></div>
+    <div class="push_btn" id="pb6"><img src="./img/6f75849b.png"></div>
+  </div>
+  <div class="wwrapper">
+    <div class="push_btn" id="pb7"><img src="./img/74a318d5.png"></div>
+    <div class="push_btn" id="pb8"><img src="./img/7542122c.png"></div>
+    <div class="push_btn" id="pb9"><img src="./img/c7c6ad26.png"></div>
+  </div>
+</div>
+#+end_src
+
+查看提示中的图片，有些图片非常明显地被抹去了一个文字（如 =f2a7baf3= 为 C 楼前，
+“三・十而立”的“三”字被抹去。于是考虑现场到访这些地点考查这些文字。其中，大部分地
+方，如C 楼、主楼前、新清华学堂前、大礼堂旁『三一八』断碑、零零阁、校河拐角、六教后
+停车场等地，由于比较熟悉，直接从照片中即可判断其地点，比较容易。而剩下的两处，就
+需要一些工夫了。
+
+** 4bea2543
+
+[[file:./4bea.png]]
+
+在校园里瞎逛了一圈，发现窗户形状为 1 处的分四格长条形窗户，似乎只有 MMW 科技大楼
+才有。那么，有什么地方可以看到 MMW 科技大楼，前面又有一个被米黄色岗亭守着的停车
+场（注意 2 处）呢？沿着南北方向寻找，首先发现的是那个绿色的货车头（x），最后发现
+这是汽车系的停车场所在。
+
+** 6f75849b
+
+在 Google 中搜索『1988 清华 携手』字样，可以查到[[https://zh.wikipedia.org/wiki/File:%E6%B8%85%E8%8F%AF%E6%A0%A1%E5%8F%8B%E7%B4%80%E5%BF%B5%E7%89%A9%E9%9B%95%E5%A1%91%E3%80%8C%E6%94%9C%E6%89%8B%E3%80%8D.jpg][维基百科上的文件]]和[[https://www.tsinghua.edu.cn/info/1181/53287.htm][清华新闻网的新
+闻稿]]。实际上从这些线索已足以看出图片上丢失的文字，如果要实地到访，也得到了经纬
+度坐标和“胜因院28号校友总会”的信息。（不过，现在胜因院28号似乎是“清华大学美术学
+院书法研究室”之类的名号）
+
+* Treasure Hunter Plus Plus Plus
+=13 solves, 440 pts, First Blood=
+
+按照提示将照片发送给 nano 即可。实际上，我能取得一血，完全是由于知道这道题的出现
+足够早（x）

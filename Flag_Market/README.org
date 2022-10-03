@@ -1,0 +1,47 @@
+* Flag Market level 1
+=25 solves, 214 pts=
+
+首先扑面而来的是一个 POW，使用 python 穷举前四位的值直到 SHA256 的结果一致之后发
+回即可。然后看到一个简单的买卖界面，阅读给出的源代码，注意到其并没有验证买卖价格
+是否为负：
+
+#+begin_src python
+price = int(self.recv("Price:"))
+flag = self.recv("Flag:")
+if price > 100:
+    print("Too Expensive")
+    return
+#+end_src
+
+于是我们可以把价格设定为 =-0x233333333333333= ，然后即可把 flag 买到手。为了查看
+flag 的内容，需要一个 RSA 签名，但是即使我们没有给出正确的签名，服务仍然会返回正
+确签名的值：
+
+#+begin_src python
+def view(self, idx, sig):
+    if self.user != b'admin':
+        print(f"sig: {self.sign(self.user, self.command[2])}")
+    # ...
+    if self.user == item.getOwner() and self.verify(self.user, self.command[2], sig):
+        print(item.content)
+#+end_src
+
+于是首先随便尝试一个签名即可读取正确的 flag。
+
+* Flag Market level 2
+=20 solves, 233 pts=
+
+比较两次的代码发现修改的地方只有 =sell= 增加了价格检查（增加了一个假 flag 其实没有任何用
+途）而虽然 =setprice= 没有检查非负，但是其需要签名 =(owner, price)= ，这个值我们
+预先并不能知道。
+
+但是，注意到奇怪的替换字符串中包含了一个纯数字 ="5311"=
+#+begin_src python
+self.command = [b"r3g1st3r", b"10g1n", b"v13w", b"5311", b"6uy", b"s3tpr1c3", b"l0g0ut", b"3x1t"]
+#+end_src
+而签名使用的 padding，是简单的 =SHA256(CONCAT(user,message))= 。这使得
+=("a-123","5311")= 和 =("a", "-1235311")= 的签名相同。
+
+利用这一特征，我们可以设立一个相应名称的账户来获取将价格设为负数所需的签名。
+
+接下来如法炮制即可。
